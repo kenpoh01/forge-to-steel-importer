@@ -1,0 +1,17 @@
+{
+  "id": "forge-to-steel-importer",
+  "title": "Forge to Steel Importer",
+  "description": "Imports Forged Steel .ds-hero files as Draw Steel system heroes.",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
+  "authors": [{ "name": "Ivan" }],
+  "esmodules": ["scripts/main.js"],
+  "packs": [],
+  "languages": [],
+  "url": "",
+  "manifest": "",
+  "download": ""
+}

@@ -1,0 +1,37 @@
+// FTStoDSAncestry.js
+// Imports the hero's ancestry from a .ds-hero file into a Draw Steel actor.
+
+import { matchOriginItem } from "./helpers/matchOriginItem.js";
+
+export class FTStoDSAncestry {
+
+  static extract(fsData) {
+    if (!fsData.ancestry) return null;
+
+    return {
+      id: fsData.ancestry.id ?? null,
+      name: fsData.ancestry.name ?? null,
+      raw: fsData.ancestry
+    };
+  }
+
+  static async apply(actor, fsAncestry) {
+    if (!fsAncestry) return;
+
+    const pack = game.packs.get("draw-steel.origins");
+    if (!pack) {
+      console.error("Forge to Steel Importer | Could not find compendium: draw-steel.origins");
+      return;
+    }
+
+    const entry = await matchOriginItem(pack, fsAncestry.id, fsAncestry.name, "ancestry");
+
+    if (!entry) {
+      console.warn(`Forge to Steel Importer | Could not find ancestry: ${fsAncestry.id} / ${fsAncestry.name}`);
+      return;
+    }
+
+    const item = await pack.getDocument(entry._id);
+    await actor.createEmbeddedDocuments("Item", [item.toObject()]);
+  }
+}
