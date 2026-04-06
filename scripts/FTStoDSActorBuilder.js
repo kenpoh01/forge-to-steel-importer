@@ -1,86 +1,133 @@
-//FTS to DS Actor Builder file
+// FTStoDSActorBuilder.js
+// Builds a Draw Steel hero actor using FS data + compendium-sourced DS items.
 
 import { FSFeatureResolver } from "./resolvers/index.js";
+import { FSAbilityResolver } from "./resolvers/FSAbilityResolver.js";
 
 import { FTStoDSAncestry } from "./FTStoDSAncestry.js";
 import { FTStoDSCulture } from "./FTStoDSCulture.js";
 import { FTStoDSUpbringing } from "./FTStoDSUpbringing.js";
-
 import { FTStoDSClass } from "./FTStoDSClass.js";
-import { FSClassResolver } from "./resolvers/FSClassResolver.js";
-
 import { FTStoDSCareer } from "./FTStoDSCareer.js";
 import { FTStoDSProgression } from "./FTStoDSProgression.js";
 import { FTStoDSCharacteristics } from "./FTStoDSCharacteristics.js";
 import { FTStoDSPhysical } from "./FTStoDSPhysical.js";
 
+import { FSItemTypeFilter } from "./fs-filters/FSItemTypeFilter.js";
+import { FSSkillChoiceFilter } from "./fs-filters/FSSkillChoiceFilter.js";
+import { FSPerkFilter } from "./fs-filters/FSPerkFilter.js";
+
+import { FTStoDSFeatureMatcher } from "./importers/FTStoDSFeatureMatcher.js";
+
 export class FTStoDSActorBuilder {
 
-  static async buildHero(fsData, items) {
+  static async buildHero(fsData, items, compendium) {
+
     const name = fsData.name ?? "Imported Hero";
 
+    // ---------------------------------------------------------
+    // 0. Create the actor shell
+    // ---------------------------------------------------------
     const actor = await Actor.create({
       name,
       type: "hero",
       system: {}
     });
 
-    // ⭐ STORE FS DATA ON THE ACTOR (CRITICAL)
-    console.log("Builder: storing fsData on actor:", fsData);
-
     await actor.update({
       "flags.draw-steel-item-importer.fsData": fsData
     });
 
-    console.log("Builder: actor.flags after update:", actor.flags);
-	
-// ⭐ TEST CLASS RESOLVER HERE
+    const heroLevel = fsData?.class?.level ?? 1;
 
+    // ---------------------------------------------------------
+    // 1. Resolve all FS features (class + subclass + expanded)
+    // ---------------------------------------------------------
+    const resolvedFeatures = FSFeatureResolver.resolve(fsData, heroLevel);
 
-const heroLevel = fsData?.class?.level ?? 1;  // or fsProg.level later
-const resolvedFeatures = FSFeatureResolver.resolve(fsData, heroLevel);
+    // ---------------------------------------------------------
+    // 2. Expand abilities
+    // ---------------------------------------------------------
+    const resolvedAbilities = FSAbilityResolver.expand(
+      resolvedFeatures,
+      fsData,
+      heroLevel
+    );
 
-console.log("Resolved class features:", resolvedFeatures);
-
-	
-	
-
-    // 1. Import ancestry
-    const fsAncestry = FTStoDSAncestry.extract(fsData);
-    await FTStoDSAncestry.apply(actor, fsAncestry);
-
-    // 2. Import culture
-    const fsCulture = FTStoDSCulture.extract(fsData);
-    await FTStoDSCulture.apply(actor, fsCulture);
-
-    // 3. Import upbringing
-    const fsUpbringing = FTStoDSUpbringing.extract(fsData);
-    await FTStoDSUpbringing.apply(actor, fsUpbringing);
-
-    // 3.1 Import career
-    const career = FTStoDSCareer.extract(fsData);
-    await FTStoDSCareer.apply(actor, career);
-
-    // 4. Import class
-    const fsClass = FTStoDSClass.extract(fsData);
-    await FTStoDSClass.apply(actor, fsClass);
-
-    // 5. Apply level + XP
-    const fsProg = FTStoDSProgression.extract(fsData);
-    await FTStoDSProgression.apply(actor, fsProg);
-
-    // 6. Apply characteristics
-    const fsChars = FTStoDSCharacteristics.extract(fsData);
-    await FTStoDSCharacteristics.apply(actor, fsChars);
-
-    // 7. Apply stamina, recoveries, movement, size
-    const fsPhys = FTStoDSPhysical.extract(fsData);
-    await FTStoDSPhysical.apply(actor, fsPhys);
-
-    // 8. Add items (abilities, features, equipment)
-    if (items?.length) {
-      await actor.createEmbeddedDocuments("Item", items);
+    // ---------------------------------------------------------
+    // 3. Apply Skill Choices
+    // ---------------------------------------------------------
+    for (const f of resolvedFeatures) {
+      await FSSkillChoiceFilter.apply(actor, f);
     }
+
+    // ---------------------------------------------------------
+    // 4. Apply Perks
+    // ---------------------------------------------------------
+    let perkItems = [];
+    for (const f of resolvedFeatures) {
+      const items = await FSPerkFilter.apply(actor, f);
+      perkItems.push(...items);
+    }
+
+    // ---------------------------------------------------------
+    // 5. Combine all FS-derived items BEFORE filtering
+    // ---------------------------------------------------------
+    const combined = [
+      ...resolvedAbilities,
+      ...resolvedFeatures,
+      ...perkItems
+    ];
+
+    // ---------------------------------------------------------
+    // 5.5 Deduplicate by normalized name + type
+    // ---------------------------------------------------------
+    const deduped = [];
+    const seen = new Set();
+
+    for (const f of combined) {
+      const norm = FTStoDSFeatureMatcher.normalize(f.name ?? "");
+      const key = `${f.type}::${norm}`;
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(f);
+    }
+
+    // ---------------------------------------------------------
+    // 6. Filter out wrapper + non-item FS types
+    // ---------------------------------------------------------
+    const filtered = deduped.filter(f => !FSItemTypeFilter.ignore(f));
+
+    // ---------------------------------------------------------
+    // 7. Compendium lookup for each feature/ability
+    // ---------------------------------------------------------
+    const matcher = new FTStoDSFeatureMatcher(compendium);
+
+    const finalItems = [];
+    for (const f of filtered) {
+      const dsItem = await matcher.resolve(f);
+      if (dsItem) finalItems.push(dsItem);
+    }
+
+    // ---------------------------------------------------------
+    // 8. Create DS items on actor
+    // ---------------------------------------------------------
+    if (finalItems.length) {
+      await actor.createEmbeddedDocuments("Item", finalItems);
+    }
+
+    // ---------------------------------------------------------
+    // 9. Apply ancestry/culture/upbringing/class/career/etc.
+    // ---------------------------------------------------------
+    await FTStoDSAncestry.apply(actor, FTStoDSAncestry.extract(fsData));
+    await FTStoDSCulture.apply(actor, FTStoDSCulture.extract(fsData));
+    await FTStoDSUpbringing.apply(actor, FTStoDSUpbringing.extract(fsData));
+    await FTStoDSCareer.apply(actor, FTStoDSCareer.extract(fsData));
+    await FTStoDSClass.apply(actor, FTStoDSClass.extract(fsData));
+    await FTStoDSProgression.apply(actor, FTStoDSProgression.extract(fsData));
+    await FTStoDSCharacteristics.apply(actor, FTStoDSCharacteristics.extract(fsData));
+    await FTStoDSPhysical.apply(actor, FTStoDSPhysical.extract(fsData));
 
     return actor;
   }

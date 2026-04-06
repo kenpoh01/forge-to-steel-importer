@@ -1,0 +1,117 @@
+// FTStoDSPhysical.js
+// Handles physical attributes: size and movement only.
+
+export class FTStoDSPhysical {
+
+  /**
+   * Extract raw physical data from the .ds-hero file.
+   */
+  static extract(fsData) {
+    console.log("FTStoDSPhysical.extract: fsData.physical =", fsData.physical);
+
+    return {
+      movement: fsData.physical?.movement ?? {},
+      raw: fsData.physical ?? {}
+    };
+  }
+
+  /**
+   * Extract size from ancestry/culture/upbringing/class features.
+   */
+  static extractSizeFromFeatures(fsData) {
+    console.log("FTStoDSPhysical.extractSizeFromFeatures: fsData =", fsData);
+
+    if (!fsData) {
+      console.warn("FTStoDSPhysical.extractSizeFromFeatures: fsData is missing!");
+      return null;
+    }
+
+    const features = [
+      ...(fsData.ancestry?.features ?? []),
+      ...(fsData.culture?.features ?? []),
+      ...(fsData.upbringing?.features ?? []),
+      ...(fsData.career?.features ?? []),
+      ...(fsData.class?.features ?? [])
+    ];
+
+    console.log("FTStoDSPhysical.extractSizeFromFeatures: collected features =", features);
+
+    const sizeFeature = features.find(f => f.type === "Size");
+    console.log("FTStoDSPhysical.extractSizeFromFeatures: sizeFeature =", sizeFeature);
+
+    if (!sizeFeature) return null;
+
+    const size = sizeFeature.data?.size;
+    console.log("FTStoDSPhysical.extractSizeFromFeatures: size =", size);
+
+    if (!size) return null;
+
+    const result = {
+      value: size.value ?? 1,
+      mod: size.mod ?? "M"
+    };
+
+    console.log("FTStoDSPhysical.extractSizeFromFeatures: returning =", result);
+    return result;
+  }
+
+  /**
+   * Apply physical attributes to the actor.
+   */
+  static async apply(actor, fsPhys) {
+    console.log("FTStoDSPhysical.apply: fsPhys =", fsPhys);
+
+    // Retrieve fsData from actor flags
+    const fsData = actor.flags?.["draw-steel-item-importer"]?.fsData;
+    console.log("FTStoDSPhysical.apply: fsData =", fsData);
+
+    const finalSize = this.extractSizeFromFeatures(fsData);
+    console.log("FTStoDSPhysical.apply: finalSize =", finalSize);
+
+    const updates = {};
+
+    // ---------------------------------------------------------
+    // SIZE
+    // ---------------------------------------------------------
+    if (finalSize) {
+      updates["system.combat.size.value"] = finalSize.value;
+      updates["system.combat.size.letter"] = finalSize.mod;
+      console.log("FTStoDSPhysical.apply: applying size =", updates);
+    }
+
+    // ---------------------------------------------------------
+    // MOVEMENT
+    // ---------------------------------------------------------
+    const movement = fsPhys?.movement ?? {};
+    console.log("FTStoDSPhysical.apply: fsPhys.movement =", movement);
+
+    // Default walk speed is 5 unless overridden
+    let walkSpeed = 5;
+
+    // Movement types array
+    const types = new Set(actor.system.movement.types ?? ["walk"]);
+
+    for (const [mode, value] of Object.entries(movement)) {
+      const key = mode.toLowerCase();
+
+      if (key === "walk") {
+        walkSpeed = value;
+      } else if (["fly", "swim", "burrow", "climb", "teleport"].includes(key)) {
+        types.add(key);
+      } else if (key === "hover") {
+        updates["system.movement.hover"] = !!value;
+      }
+    }
+
+    updates["system.movement.value"] = walkSpeed;
+    updates["system.movement.types"] = Array.from(types);
+
+    console.log("FTStoDSPhysical.apply: movement updates =", updates);
+
+    // ---------------------------------------------------------
+    // APPLY UPDATES
+    // ---------------------------------------------------------
+    console.log("FTStoDSPhysical.apply: final updates =", updates);
+    await actor.update(updates);
+  }
+}

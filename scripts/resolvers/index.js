@@ -1,17 +1,98 @@
 // resolvers/index.js
 
 import { FSClassResolver } from "./FSClassResolver.js";
+import { FSSubclassResolver } from "./FSSubclassResolver.js";
 
 export class FSFeatureResolver {
 
-  static resolve(fsData, heroLevel = 1) {
+  // ---------------------------------------------------------
+  // Expand "Multiple Features"
+  // ---------------------------------------------------------
+  static expandMultipleFeatures(fsFeature) {
+    const list = fsFeature.data?.features ?? [];
     const out = [];
 
-    // Only class resolver exists right now
-    if (fsData.class) {
-      out.push(...FSClassResolver.resolve(fsData.class, heroLevel));
+    for (const f of list) {
+      out.push({
+        ...f,
+        _parentId: fsFeature.id
+      });
     }
 
     return out;
+  }
+
+  // ---------------------------------------------------------
+  // Expand "Choice" (use selected only)
+  // ---------------------------------------------------------
+  static expandChoice(fsFeature) {
+    const selected = fsFeature.data?.selected ?? [];
+    const out = [];
+
+    for (const f of selected) {
+      out.push({
+        ...f,
+        _parentId: fsFeature.id
+      });
+    }
+
+    return out;
+  }
+
+  // ---------------------------------------------------------
+  // Normalize "Text" and "Package Content" into real features
+  // ---------------------------------------------------------
+  static normalizeSimpleFeature(f) {
+    return {
+      id: f.id,
+      name: f.name,
+      description: f.description ?? "",
+      type: "Feature",
+      data: f.data ?? {},
+      _parentId: f._parentId
+    };
+  }
+
+  // ---------------------------------------------------------
+  // Main resolver
+  // ---------------------------------------------------------
+  static resolve(fsData, heroLevel = 1) {
+    const collected = [];
+
+    // ---------------------------------------------------------
+    // 1. Class + Subclass features
+    // ---------------------------------------------------------
+    if (fsData.class) {
+      collected.push(...FSClassResolver.resolve(fsData.class, heroLevel));
+      collected.push(...FSSubclassResolver.resolveSubclasses(fsData.class, heroLevel));
+    }
+
+    // ---------------------------------------------------------
+    // 2. Expand wrappers
+    // ---------------------------------------------------------
+    const expanded = [];
+
+    for (const feature of collected) {
+      switch (feature.type) {
+
+        case "Multiple Features":
+          expanded.push(...this.expandMultipleFeatures(feature));
+          break;
+
+        case "Choice":
+          expanded.push(...this.expandChoice(feature));
+          break;
+
+        case "Text":
+        case "Package Content":
+          expanded.push(this.normalizeSimpleFeature(feature));
+          break;
+
+        default:
+          expanded.push(feature);
+      }
+    }
+
+    return expanded;
   }
 }

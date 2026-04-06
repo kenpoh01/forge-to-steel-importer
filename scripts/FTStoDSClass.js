@@ -1,46 +1,57 @@
 // FTStoDSClass.js
-// Imports the hero's class from a .ds-hero file into a Draw Steel actor.
 
 export class FTStoDSClass {
 
+  // ---------------------------------------------------------
+  // Extract class metadata only
+  // ---------------------------------------------------------
   static extract(fsData) {
-    if (!fsData.class) return null;
+    console.log("FTStoDSClass.extract: fsData.class =", fsData.class);
 
     return {
-      id: fsData.class.id ?? null,
-      name: fsData.class.name ?? null
+      classData: fsData.class ?? null
     };
   }
 
-  static async apply(actor, fsClass) {
-    if (!fsClass) return;
+  // ---------------------------------------------------------
+  // Apply class item + class-level updates
+  // ---------------------------------------------------------
+  static async apply(actor, { classData }) {
+    console.log("FTStoDSClass.apply: classData =", classData);
 
-    // Load the Draw Steel class compendium
-    const pack = game.packs.get("draw-steel.classes");
-    if (!pack) {
-      console.error("Forge to Steel Importer | Could not find compendium: draw-steel.classes");
-      return;
+    // Remove existing class items
+    const existingClassItems = actor.items.filter(i => i.type === "class");
+    if (existingClassItems.length > 0) {
+      await actor.deleteEmbeddedDocuments("Item", existingClassItems.map(i => i.id));
     }
 
-    const index = await pack.getIndex();
+    if (!classData) return;
 
-    // Try to match by ID first
-    let entry = index.find(e => e._id === fsClass.id);
+    // Build class item
+    const classItem = {
+      name: classData.name,
+      type: "class",
+      img: classData.img ?? "icons/skills/movement/ball-spinning-blue.webp",
+      system: {
+        description: {
+          value: classData.description ?? "",
+          director: ""
+        },
+        source: classData.source ?? {},
+        _dsid: classData.id,
+        advancements: classData.advancements ?? {}
+      }
+    };
 
-    // Fallback: match by name
-    if (!entry && fsClass.name) {
-      entry = index.find(e => e.name === fsClass.name);
-    }
+    // Set class level based on actor progression
+    const actorLevel =
+      actor.system.progression?.level ??
+      actor.system.progression?.character?.level ??
+      1;
 
-    if (!entry) {
-      console.warn(`Forge to Steel Importer | Could not find class: ${fsClass.id} / ${fsClass.name}`);
-      return;
-    }
+    classItem.system.level = actorLevel;
 
-    // Load the full item
-    const item = await pack.getDocument(entry._id);
-
-    // Add class to actor
-    await actor.createEmbeddedDocuments("Item", [item.toObject()]);
+    // Create the class item
+    await actor.createEmbeddedDocuments("Item", [classItem]);
   }
 }

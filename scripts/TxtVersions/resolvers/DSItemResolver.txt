@@ -1,0 +1,64 @@
+// importers/DSItemResolver.js
+
+/**
+ * Resolve a *resolved* feature or ability into a DS item.
+ * - Tries compendium match by name first.
+ * - Falls back to a minimal DS item using the resolved data.
+ *
+ * IMPORTANT: Only call this with data that has already passed through
+ * FSClassResolver / FSSubclassResolver / FSAbilityResolver.
+ */
+export async function resolveToDSItem(resolved, matcher) {
+  console.groupCollapsed(
+    "%c[DSItemResolver] Resolving to DS item",
+    "color:#ff9800; font-weight:bold"
+  );
+  console.log("Name:", resolved.name);
+  console.log("Type:", resolved.type);
+  console.log("Resolved:", resolved);
+  console.groupEnd();
+
+  // 1) Try compendium match by name
+  const compendiumItem = await matcher.findByName(resolved.name);
+
+  if (compendiumItem) {
+    console.groupCollapsed(
+      "%c[DSItemResolver:MATCH] Compendium match found",
+      "color:#4caf50; font-weight:bold"
+    );
+    console.log("Resolved:", resolved);
+    console.log("Matched Item:", compendiumItem);
+    console.groupEnd();
+    return compendiumItem;
+  }
+
+  // 2) Fallback: build a minimal DS item from the resolved data
+  const isAbility = resolved.type === "Ability";
+
+  const item = {
+    name: resolved.name ?? (isAbility ? "Ability" : "Feature"),
+    type: isAbility ? "ability" : "feature",
+    system: {}
+  };
+
+  if (isAbility) {
+    // FSAbilityResolver should have put the FS ability under data.ability
+    item.system = resolved.data?.ability ?? {};
+  } else {
+    // Non-ability features: keep description + any extra data
+    item.system = {
+      description: resolved.description ?? "",
+      ...(resolved.data ?? {})
+    };
+  }
+
+  console.groupCollapsed(
+    "%c[DSItemResolver:FALLBACK] Created fallback item",
+    "color:#f44336; font-weight:bold"
+  );
+  console.log("Resolved:", resolved);
+  console.log("Created Item:", item);
+  console.groupEnd();
+
+  return item;
+}

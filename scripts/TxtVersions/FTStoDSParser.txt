@@ -1,0 +1,88 @@
+// FTStoDSParser.js
+// Parses .ds-hero JSON and extracts only real feature names (not characteristics)
+
+export class FTStoDSParser {
+
+  static parseJSON(rawText) {
+    return JSON.parse(rawText);
+  }
+
+  // Debugging helper: collect all name fields in the file
+  static extractAllNames(root) {
+    const names = [];
+    this._walkForNames(root, names);
+    return Array.from(new Set(names));
+  }
+
+  static _walkForNames(node, list) {
+    if (!node || typeof node !== "object") return;
+
+    if (typeof node.name === "string") {
+      list.push(node.name);
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) this._walkForNames(item, list);
+      return;
+    }
+
+    for (const key of Object.keys(node)) {
+      this._walkForNames(node[key], list);
+    }
+  }
+
+  // Extract only names that correspond to compendium-backed features
+  static extractChosenNames(root) {
+    const names = [];
+    this._walkForChoices(root, names);
+    return Array.from(new Set(names));
+  }
+
+  static _walkForChoices(node, list) {
+    if (!node || typeof node !== "object") return;
+
+    // ❌ Ignore characteristics entirely
+    // They look like: { characteristic: "Might", value: 1 }
+    if (node.characteristic && typeof node.characteristic === "string") {
+      return;
+    }
+
+    // ✔ If this node has explicit selected choices, use those
+    if (Array.isArray(node.selected) && node.selected.length > 0) {
+      for (const sel of node.selected) {
+        if (sel?.name) list.push(sel.name);
+        this._walkForChoices(sel, list);
+      }
+      return;
+    }
+
+    // ✔ Options often wrap feature objects
+    if (Array.isArray(node.options) && node.options.length > 0) {
+      for (const opt of node.options) {
+        const feat = opt.feature ?? opt;
+        if (feat?.name) list.push(feat.name);
+        this._walkForChoices(feat, list);
+      }
+    }
+
+    // ✔ listOptions are usually skill names or feature names
+    if (Array.isArray(node.listOptions) && node.listOptions.length > 0) {
+      const count = typeof node.count === "number" ? node.count : 1;
+      const chosen = node.listOptions.slice(0, count);
+      for (const name of chosen) {
+        if (typeof name === "string") list.push(name);
+      }
+    }
+
+    // Recurse arrays
+    if (Array.isArray(node)) {
+      for (const item of node) this._walkForChoices(item, list);
+      return;
+    }
+
+    // Recurse objects
+    for (const key of Object.keys(node)) {
+      this._walkForChoices(node[key], list);
+    }
+  }
+}

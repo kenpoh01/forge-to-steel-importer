@@ -8,7 +8,13 @@
     "verified": "13"
   },
   "authors": [{ "name": "Ivan" }],
-  "esmodules": ["scripts/main.js"],
+  "esmodules": [
+  "scripts/main.js",
+  "scripts/resolvers/index.js",
+  "scripts/resolvers/FSClassResolver.js",
+  "scripts/resolvers/FSSubclassResolver.js",
+  "scripts/resolvers/FSAbilityResolver.js"
+],
   "packs": [],
   "languages": [],
   "url": "",

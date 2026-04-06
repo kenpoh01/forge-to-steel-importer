@@ -20,7 +20,6 @@ export class FTStoDSCompendium {
    * Load all compendium indexes and build a lookup table.
    */
   async initialize() {
-    console.log("Forge to Steel Importer | Initializing compendium index…");
 
     for (const id of PACK_IDS) {
       const pack = game.packs.get(id);
@@ -46,7 +45,6 @@ export class FTStoDSCompendium {
       }
     }
 
-    console.log("Forge to Steel Importer | Compendium index built:", this.index);
   }
 
   /**

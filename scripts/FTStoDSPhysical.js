@@ -1,7 +1,11 @@
 // FTStoDSPhysical.js
+// Handles physical attributes: size and movement only.
 
 export class FTStoDSPhysical {
 
+  /**
+   * Extract raw physical data from the .ds-hero file.
+   */
   static extract(fsData) {
     console.log("FTStoDSPhysical.extract: fsData.physical =", fsData.physical);
 
@@ -11,6 +15,9 @@ export class FTStoDSPhysical {
     };
   }
 
+  /**
+   * Extract size from ancestry/culture/upbringing/class features.
+   */
   static extractSizeFromFeatures(fsData) {
     console.log("FTStoDSPhysical.extractSizeFromFeatures: fsData =", fsData);
 
@@ -40,7 +47,7 @@ export class FTStoDSPhysical {
     if (!size) return null;
 
     const result = {
-      value: size.value ?? 0,
+      value: size.value ?? 1,
       mod: size.mod ?? "M"
     };
 
@@ -48,11 +55,13 @@ export class FTStoDSPhysical {
     return result;
   }
 
+  /**
+   * Apply physical attributes to the actor.
+   */
   static async apply(actor, fsPhys) {
     console.log("FTStoDSPhysical.apply: fsPhys =", fsPhys);
-    console.log("FTStoDSPhysical.apply: actor.flags =", actor.flags);
 
-    // READ THE CORRECT FLAG PATH
+    // Retrieve fsData from actor flags
     const fsData = actor.flags?.["draw-steel-item-importer"]?.fsData;
     console.log("FTStoDSPhysical.apply: fsData =", fsData);
 
@@ -61,25 +70,47 @@ export class FTStoDSPhysical {
 
     const updates = {};
 
+    // ---------------------------------------------------------
+    // SIZE
+    // ---------------------------------------------------------
     if (finalSize) {
       updates["system.combat.size.value"] = finalSize.value;
       updates["system.combat.size.letter"] = finalSize.mod;
       console.log("FTStoDSPhysical.apply: applying size =", updates);
     }
 
-    updates["system.movement.value"] = 5;
-    console.log("FTStoDSPhysical.apply: setting walk speed = 5");
-
+    // ---------------------------------------------------------
+    // MOVEMENT
+    // ---------------------------------------------------------
     const movement = fsPhys?.movement ?? {};
     console.log("FTStoDSPhysical.apply: fsPhys.movement =", movement);
 
+    // Default walk speed is 5 unless overridden
+    let walkSpeed = 5;
+
+    // Movement types array
+    const types = new Set(actor.system.movement.types ?? ["walk"]);
+
     for (const [mode, value] of Object.entries(movement)) {
       const key = mode.toLowerCase();
-      if (key !== "walk") {
-        updates[`system.physical.movement.${key}`] = value;
+
+      if (key === "walk") {
+        walkSpeed = value;
+      } else if (["fly", "swim", "burrow", "climb", "teleport"].includes(key)) {
+        types.add(key);
+      } else if (key === "hover") {
+        updates["system.movement.hover"] = !!value;
       }
     }
 
+    updates["system.movement.value"] = walkSpeed;
+    updates["system.movement.types"] = Array.from(types);
+
+    console.log("FTStoDSPhysical.apply: movement updates =", updates);
+
+    // ---------------------------------------------------------
+    // APPLY UPDATES
+    // ---------------------------------------------------------
     console.log("FTStoDSPhysical.apply: final updates =", updates);
     await actor.update(updates);
   }

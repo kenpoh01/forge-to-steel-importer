@@ -1,0 +1,73 @@
+import { FTStoDSParser } from "./FTStoDSParser.js";
+import { FTStoDSCompendium } from "./FTStoDSCompendium.js";
+import { FTStoDSActorBuilder } from "./FTStoDSActorBuilder.js";
+
+export class FTStoDSImporterApp extends FormApplication {
+  static get defaultOptions() {
+    return foundry.utils.mergeObject(super.defaultOptions, {
+      id: "forge-to-steel-importer",
+      title: "Forge to Steel Importer",
+      template: "modules/forge-to-steel-importer/templates/importer-app.html",
+      width: 400
+    });
+  }
+
+async _updateObject(event, formData) {
+  const fileInput = this.element.find('input[name="ds-file"]')[0];
+  const file = fileInput?.files?.[0];
+if (!file) return ui.notifications.error("No .ds-hero file selected.");
+
+if (!file.name.endsWith(".ds-hero")) {
+  return ui.notifications.error("Please select a valid Forged Steel .ds-hero file.");
+}
+
+  const dryRun = !!formData["dry-run"];
+
+  const rawText = await file.text();
+  let fsData;
+
+  try {
+    fsData = FTStoDSParser.parseJSON(rawText);
+  } catch (err) {
+    console.error(err);
+    return ui.notifications.error("Failed to parse .ds-hero");
+  }
+
+  const chosenNames = FTStoDSParser.extractChosenNames(fsData);
+
+  const comp = new FTStoDSCompendium();
+  await comp.initialize();
+
+  const resolvedItems = await comp.resolveNames(chosenNames);
+  const matchedNames = resolvedItems.map(i => i._sourceName);
+  const missingNames = chosenNames.filter(n => !matchedNames.includes(n));
+
+  // DRY RUN MODE
+  if (dryRun) {
+    return this._showDryRunReport(matchedNames, missingNames);
+  }
+
+  // NORMAL IMPORT
+  const actor = await FTStoDSActorBuilder.buildHero(fsData, resolvedItems);
+  ui.notifications.info(`Imported hero: ${actor.name}`);
+}
+
+_showDryRunReport(matched, missing) {
+  const html = `
+    <h2>Dry Run Results</h2>
+    <h3>Matched (${matched.length})</h3>
+    <ul>${matched.map(n => `<li>${n}</li>`).join("")}</ul>
+
+    <h3>Missing (${missing.length})</h3>
+    <ul>${missing.map(n => `<li>${n}</li>`).join("")}</ul>
+  `;
+
+  new Dialog({
+    title: "Forge to Steel Importer — Dry Run",
+    content: html,
+    buttons: {
+      ok: { label: "OK" }
+    }
+  }).render(true);
+}
+}

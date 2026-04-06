@@ -1,0 +1,95 @@
+// scripts/fs-filters/FSPerkFilter.js
+
+export class FSPerkFilter {
+
+  static isPerk(fsFeature) {
+    return fsFeature.type === "Perk";
+  }
+
+  static normalizeSkillName(name) {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w, i) => i === 0 ? w : w[0].toUpperCase() + w.slice(1))
+      .join("");
+  }
+
+  static async apply(actor, fsFeature) {
+    if (!this.isPerk(fsFeature)) return [];
+
+    console.log(
+      "%c[FSPerkFilter] Processing Perk:",
+      "color:#ff9800; font-weight:bold",
+      fsFeature
+    );
+
+    const selected = fsFeature.data?.selected ?? [];
+
+    if (!selected.length) {
+      console.log("%c[FSPerkFilter] No selected perk → ignoring.", "color:#ffb74d");
+      return [];
+    }
+
+    const perk = selected[0];
+
+    if (!perk.name) {
+      console.warn("%c[FSPerkFilter] Selected perk has no name → ignoring.", "color:#f44336");
+      return [];
+    }
+
+    console.log(
+      "%c[FSPerkFilter] Selected perk:",
+      "color:#ff9800; font-weight:bold",
+      perk
+    );
+
+    // ---------------------------------------------------------
+    // CASE 1 — Feature Perk (has description)
+    // ---------------------------------------------------------
+    if (perk.description) {
+      console.log(
+        `%c[FSPerkFilter] Feature perk detected → creating DS Feature: ${perk.name}`,
+        "color:#42a5f5; font-weight:bold"
+      );
+
+      return [
+        {
+          name: perk.name,
+          type: "feature",
+          system: {
+            description: { value: perk.description ?? "" },
+            source: { value: "Perk" },
+            _dsid: perk.id
+          }
+        }
+      ];
+    }
+
+    // ---------------------------------------------------------
+    // CASE 2 — Skill Perk (no description)
+    // ---------------------------------------------------------
+    if (perk.list) {
+      const key = this.normalizeSkillName(perk.list);
+
+      console.log(
+        `%c[FSPerkFilter] Skill perk detected → granting skill: ${key}`,
+        "color:#4caf50; font-weight:bold"
+      );
+
+      const current =
+        foundry.utils.getProperty(actor.system, "skills.value") ?? [];
+
+      const merged = Array.from(new Set([...current, key]));
+
+      await actor.update({
+        "system.skills.value": merged
+      });
+
+      return [];
+    }
+
+    console.warn("%c[FSPerkFilter] Unknown perk type → ignoring.", "color:#f44336");
+    return [];
+  }
+}

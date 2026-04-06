@@ -1,46 +1,81 @@
 // FSClassResolver.js
-//
-// Resolves class features from FS data, respecting:
-// - Level gating (only include features up to heroLevel)
-// - Choice selections (data.selected)
-// - Class Ability selections (data.selectedIDs)
-// - Multiple Features expansion
-//
-// Output: a flat array of normalized feature objects.
 
 export class FSClassResolver {
+  /**
+   * Extract hero level from FS hero JSON.
+   * Backwards-compatible with multiple FS schema variants.
+   */
+   
+static extractHeroLevel(fsHero) {
+  return Number(fsHero?.class?.level) || 1;
+}
 
   /**
-   * Resolve all class features up to the hero's level.
-   * @param {object} classData - fsData.class
-   * @param {number} heroLevel - e.g. 3
-   * @returns {Array<object>} resolved features
+   * Resolve FS class data into a flat list of features.
+   * @param {object} fsClass - The FS class JSON (with featuresByLevel)
+   * @param {number} heroLevel - The hero's current level
+   * @returns {Array<object>} resolved feature list
    */
-  static resolve(classData, heroLevel = 1) {
-    if (!classData) return [];
-
+  static resolve(fsClass, heroLevel) {
     const out = [];
-    const levels = classData.featuresByLevel ?? [];
 
-    for (const levelBlock of levels) {
-      const lvl = levelBlock.level ?? 0;
-      if (lvl > heroLevel) continue; // ignore future levels
+    console.groupCollapsed(
+      "%c[CLASS] Resolving class features",
+      "color:#2196f3; font-weight:bold"
+    );
+    console.log("Class:", fsClass?.name);
+    console.log("Hero Level:", heroLevel);
+    console.log("featuresByLevel:", fsClass?.featuresByLevel);
+    console.groupEnd();
 
-      const features = levelBlock.features ?? [];
-      for (const feature of features) {
-        this._processFeature(feature, out, { level: lvl });
+    if (!fsClass?.featuresByLevel || !Array.isArray(fsClass.featuresByLevel)) {
+      console.warn("[CLASS] No featuresByLevel found on class:", fsClass?.name);
+      return out;
+    }
+
+    for (const levelBlock of fsClass.featuresByLevel) {
+      const level = levelBlock.level ?? 0;
+
+      // -------------------------------
+      // HARD LEVEL GATING
+      // -------------------------------
+      if (level > heroLevel) {
+        console.log(
+          "%c[CLASS:SKIP] Skipping level block above hero level",
+          "color:#9e9e9e; font-style:italic",
+          { levelBlockLevel: level, heroLevel }
+        );
+        continue;
+      }
+
+      console.groupCollapsed(
+        "%c[CLASS:LEVEL] Processing level block",
+        "color:#3f51b5; font-weight:bold"
+      );
+      console.log("Level:", level);
+      console.log("Features:", levelBlock.features);
+      console.groupEnd();
+
+      for (const feature of levelBlock.features ?? []) {
+        this._processFeature(feature, out, { level });
       }
     }
+
+    console.groupCollapsed(
+      "%c[CLASS:RESULT] Final resolved class features",
+      "color:#4caf50; font-weight:bold"
+    );
+    console.log(out);
+    console.groupEnd();
 
     return out;
   }
 
-  // ---------------------------------------------------------------------------
-  // Core feature processing
-  // ---------------------------------------------------------------------------
-
+  // ---------------------------------------------------------
+  // Core feature dispatcher
+  // ---------------------------------------------------------
   static _processFeature(feature, out, context) {
-    if (!feature || typeof feature !== "object") return;
+    if (!feature) return;
 
     const type = feature.type;
 
@@ -54,11 +89,11 @@ export class FSClassResolver {
         break;
 
       case "Class Ability":
-        this._processClassAbilityFeature(feature, out, context);
+        this._processClassAbility(feature, out, context);
         break;
 
       default:
-        // Base case: a concrete feature (Bonus, Ability, Text, etc.)
+        // Base feature: attach level and push through
         out.push({
           ...feature,
           _level: context.level
@@ -67,57 +102,76 @@ export class FSClassResolver {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Choice feature: uses data.selected
-  // ---------------------------------------------------------------------------
-
+  // ---------------------------------------------------------
+  // Choice handling
+  // ---------------------------------------------------------
   static _processChoiceFeature(feature, out, context) {
     const data = feature.data ?? {};
+    const options = data.options ?? [];
     const selected = data.selected ?? [];
 
-    for (const sel of selected) {
-      if (sel && typeof sel === "object" && sel.type) {
-        // Full feature object
-        this._processFeature(sel, out, context);
-      } else {
-        // Primitive selection (e.g. skill names)
-        out.push({
-          id: sel.id ?? null,
-          name: sel.name ?? String(sel),
-          type: feature.type,
-          data: { value: sel },
-          _level: context.level
-        });
-      }
+    if (!Array.isArray(selected) || selected.length === 0) {
+      console.warn(
+        "[CLASS:CHOICE] No selected options for Choice feature:",
+        feature.name
+      );
+      return;
+    }
+
+    for (const option of options) {
+      const value = option.value;
+      const optFeature = option.feature;
+
+      if (!selected.includes(value)) continue;
+      if (!optFeature) continue;
+
+      this._processFeature(optFeature, out, context);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Multiple Features: expand data.features[]
-  // ---------------------------------------------------------------------------
-
+  // ---------------------------------------------------------
+  // Multiple Features → collapse into ONE ability
+  // ---------------------------------------------------------
   static _processMultipleFeatures(feature, out, context) {
-    const data = feature.data ?? {};
-    const features = data.features ?? [];
+    const list = feature.data?.features ?? [];
 
-    for (const sub of features) {
-      this._processFeature(sub, out, context);
+    if (!Array.isArray(list) || list.length === 0) {
+      console.warn(
+        "[CLASS:MULTI] Multiple Features block has no sub-features:",
+        feature.name
+      );
+      return;
     }
+
+    const realName = list[0]?.name ?? feature.name;
+
+    const description = list
+      .map(f => f.description ?? "")
+      .filter(Boolean)
+      .join("\n\n");
+
+    const tags = list
+      .filter(f => f.type === "Package Content")
+      .map(f => f.data?.tag)
+      .filter(Boolean);
+
+    out.push({
+      id: feature.id,
+      name: realName,
+      type: "Ability",
+      description,
+      data: { tags },
+      _level: context.level
+    });
   }
 
-  // ---------------------------------------------------------------------------
-  // Class Ability: uses data.selectedIDs
-  // ---------------------------------------------------------------------------
-
-  static _processClassAbilityFeature(feature, out, context) {
-    const data = feature.data ?? {};
-    const selectedIDs = data.selectedIDs ?? [];
-
-    // We preserve the selection info; another resolver will map IDs to actual abilities.
+  // ---------------------------------------------------------
+  // Class Ability container (simple passthrough)
+  // ---------------------------------------------------------
+  static _processClassAbility(feature, out, context) {
     out.push({
       ...feature,
-      _level: context.level,
-      _selectedIDs: selectedIDs
+      _level: context.level
     });
   }
 }

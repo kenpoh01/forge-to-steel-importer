@@ -48,7 +48,7 @@ if (!file.name.endsWith(".ds-hero")) {
   }
 
   // NORMAL IMPORT
-  const actor = await FTStoDSActorBuilder.buildHero(fsData, resolvedItems);
+  const actor = await FTStoDSActorBuilder.buildHero(fsData, resolvedItems, comp);
   ui.notifications.info(`Imported hero: ${actor.name}`);
 }
 
