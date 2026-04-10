@@ -5,15 +5,20 @@ import { matchOriginItem } from "./helpers/matchOriginItem.js";
 
 export class FTStoDSCulture {
 
-  static extract(fsData) {
-    if (!fsData.culture) return null;
+static extract(fsData) {
+  const culture =
+    fsData.culture ??
+    fsData.ancestry?.culture ??
+    null;
 
-    return {
-      id: fsData.culture.id ?? null,
-      name: fsData.culture.name ?? null,
-      raw: fsData.culture
-    };
-  }
+  if (!culture) return null;
+
+  return {
+    id: culture.id ?? null,
+    name: culture.name ?? null,
+    raw: culture
+  };
+}
 
   static async apply(actor, fsCulture) {
     if (!fsCulture) return;

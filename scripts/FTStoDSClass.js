@@ -44,12 +44,12 @@ export class FTStoDSClass {
     };
 
     // Set class level based on actor progression
-    const actorLevel =
-      actor.system.progression?.level ??
-      actor.system.progression?.character?.level ??
-      1;
+    // const actorLevel =
+    //  actor.system.progression?.level ??
+    //  actor.system.progression?.character?.level ??
+    //  1;
 
-    classItem.system.level = actorLevel;
+    // classItem.system.level = actorLevel;
 
     // Create the class item
     await actor.createEmbeddedDocuments("Item", [classItem]);

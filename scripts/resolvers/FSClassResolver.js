@@ -106,28 +106,12 @@ static extractHeroLevel(fsHero) {
   // Choice handling
   // ---------------------------------------------------------
   static _processChoiceFeature(feature, out, context) {
-    const data = feature.data ?? {};
-    const options = data.options ?? [];
-    const selected = data.selected ?? [];
-
-    if (!Array.isArray(selected) || selected.length === 0) {
-      console.warn(
-        "[CLASS:CHOICE] No selected options for Choice feature:",
-        feature.name
-      );
-      return;
-    }
-
-    for (const option of options) {
-      const value = option.value;
-      const optFeature = option.feature;
-
-      if (!selected.includes(value)) continue;
-      if (!optFeature) continue;
-
-      this._processFeature(optFeature, out, context);
-    }
-  }
+  // Pass through — FSFeatureResolver will expand it
+  out.push({
+    ...feature,
+    _level: context.level
+  });
+}
 
   // ---------------------------------------------------------
   // Multiple Features → collapse into ONE ability

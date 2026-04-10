@@ -44,10 +44,19 @@ export async function matchOriginItem(pack, fsId, fsName, expectedType) {
   if (exactNorm) return exactNorm;
 
   // ---------------------------------------------------------
-  // NO starts‑with
-  // NO contains
-  // NO fuzzy matching
+  // 4. Culture-specific loose matching
   // ---------------------------------------------------------
+  if (expectedType === "culture") {
+    const loose = filtered.find(e => {
+      const a = normalizeName(e.name);
+      const b = normFS;
+      return a.includes(b) || b.includes(a);
+    });
 
+    if (loose) {
+      console.warn("[MATCH:LOOSE] Culture matched loosely:", loose.name);
+      return loose;
+    }
+  }
   return null;
 }

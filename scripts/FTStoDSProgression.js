@@ -17,11 +17,13 @@ export class FTStoDSProgression {
     const updates = {};
 
     // LEVEL
-    updates["system.hero.primary.value"] = prog.level;
+    // updates["system.hero.primary.value"] = prog.level;
 
     // XP (session/real XP)
     updates["system.hero.xp"] = prog.xp;
 
     await actor.update(updates);
+	actor.sheet?.render(true);
+	console.log("After progression update, XP is:", actor.system.hero.xp);
   }
 }
