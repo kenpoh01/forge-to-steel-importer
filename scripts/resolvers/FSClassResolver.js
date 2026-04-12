@@ -1,14 +1,15 @@
 // FSClassResolver.js
+// Resolves FS class data into a flat list of features with deterministic level gating.
 
 export class FSClassResolver {
+
   /**
    * Extract hero level from FS hero JSON.
    * Backwards-compatible with multiple FS schema variants.
    */
-   
-static extractHeroLevel(fsHero) {
-  return Number(fsHero?.class?.level) || 1;
-}
+  static extractHeroLevel(fsHero) {
+    return Number(fsHero?.class?.level) || 1;
+  }
 
   /**
    * Resolve FS class data into a flat list of features.
@@ -19,54 +20,20 @@ static extractHeroLevel(fsHero) {
   static resolve(fsClass, heroLevel) {
     const out = [];
 
-    console.groupCollapsed(
-      "%c[CLASS] Resolving class features",
-      "color:#2196f3; font-weight:bold"
-    );
-    console.log("Class:", fsClass?.name);
-    console.log("Hero Level:", heroLevel);
-    console.log("featuresByLevel:", fsClass?.featuresByLevel);
-    console.groupEnd();
-
     if (!fsClass?.featuresByLevel || !Array.isArray(fsClass.featuresByLevel)) {
-      console.warn("[CLASS] No featuresByLevel found on class:", fsClass?.name);
       return out;
     }
 
     for (const levelBlock of fsClass.featuresByLevel) {
       const level = levelBlock.level ?? 0;
 
-      // -------------------------------
-      // HARD LEVEL GATING
-      // -------------------------------
-      if (level > heroLevel) {
-        console.log(
-          "%c[CLASS:SKIP] Skipping level block above hero level",
-          "color:#9e9e9e; font-style:italic",
-          { levelBlockLevel: level, heroLevel }
-        );
-        continue;
-      }
-
-      console.groupCollapsed(
-        "%c[CLASS:LEVEL] Processing level block",
-        "color:#3f51b5; font-weight:bold"
-      );
-      console.log("Level:", level);
-      console.log("Features:", levelBlock.features);
-      console.groupEnd();
+      // Hard level gating
+      if (level > heroLevel) continue;
 
       for (const feature of levelBlock.features ?? []) {
         this._processFeature(feature, out, { level });
       }
     }
-
-    console.groupCollapsed(
-      "%c[CLASS:RESULT] Final resolved class features",
-      "color:#4caf50; font-weight:bold"
-    );
-    console.log(out);
-    console.groupEnd();
 
     return out;
   }
@@ -103,15 +70,14 @@ static extractHeroLevel(fsHero) {
   }
 
   // ---------------------------------------------------------
-  // Choice handling
+  // Choice handling (simple passthrough)
   // ---------------------------------------------------------
   static _processChoiceFeature(feature, out, context) {
-  // Pass through — FSFeatureResolver will expand it
-  out.push({
-    ...feature,
-    _level: context.level
-  });
-}
+    out.push({
+      ...feature,
+      _level: context.level
+    });
+  }
 
   // ---------------------------------------------------------
   // Multiple Features → collapse into ONE ability
@@ -120,10 +86,6 @@ static extractHeroLevel(fsHero) {
     const list = feature.data?.features ?? [];
 
     if (!Array.isArray(list) || list.length === 0) {
-      console.warn(
-        "[CLASS:MULTI] Multiple Features block has no sub-features:",
-        feature.name
-      );
       return;
     }
 

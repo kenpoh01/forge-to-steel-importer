@@ -10,9 +10,6 @@ export class FSItemTypeFilter {
     // Wrapper types that should NEVER become DS items
     const WRAPPERS = [
       "Perk",
-      "Skill Choice",
-      "Choice",
-      "Multiple Features",
       "Package Content",
       "Text"
     ];

@@ -24,6 +24,5 @@ export class FTStoDSProgression {
 
     await actor.update(updates);
 	actor.sheet?.render(true);
-	console.log("After progression update, XP is:", actor.system.hero.xp);
   }
 }

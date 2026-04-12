@@ -19,6 +19,9 @@ import { FSPerkFilter } from "./fs-filters/FSPerkFilter.js";
 
 import { FTStoDSFeatureMatcher } from "./importers/FTStoDSFeatureMatcher.js";
 
+// NEW ancestry feature suite
+import { FSAncestryParser } from "./fs-filters/ancestry/FSAncestryParser.js";
+
 export class FTStoDSActorBuilder {
 
   static async buildHero(fsData, items, compendium) {
@@ -94,21 +97,31 @@ export class FTStoDSActorBuilder {
       deduped.push(f);
     }
 
-    // ---------------------------------------------------------
-    // 6. Filter out wrapper + non-item FS types
-    // ---------------------------------------------------------
-    const filtered = deduped.filter(f => !FSItemTypeFilter.ignore(f));
+// 6. Add ancestry features BEFORE filtering + matching
+const ancestryFeatures = FSAncestryParser.extract(fsData);
+const combinedAll = [...deduped, ...ancestryFeatures];
 
-    // ---------------------------------------------------------
-    // 7. Compendium lookup for each feature/ability
-    // ---------------------------------------------------------
-    const matcher = new FTStoDSFeatureMatcher(compendium);
+// 6.1 Apply Skill Choices to ALL features (class + ancestry)
+for (const f of combinedAll) {
+  await FSSkillChoiceFilter.apply(actor, f);
+}
 
-    const finalItems = [];
-    for (const f of filtered) {
-      const dsItem = await matcher.resolve(f);
-      if (dsItem) finalItems.push(dsItem);
-    }
+
+// 6.5 Filter out wrapper + non-item FS types
+const filtered = combinedAll.filter(f => !FSItemTypeFilter.ignore(f));
+
+
+// ---------------------------------------------------------
+// 7. Compendium lookup for each feature/ability
+// ---------------------------------------------------------
+const matcher = new FTStoDSFeatureMatcher(compendium);
+
+const finalItems = [];
+for (const f of filtered) {
+  const dsItem = await matcher.resolve(f);
+  if (dsItem) finalItems.push(dsItem);
+}
+
 
     // ---------------------------------------------------------
     // 8. Create DS items on actor
@@ -118,9 +131,19 @@ export class FTStoDSActorBuilder {
     }
 
     // ---------------------------------------------------------
-    // 9. Apply ancestry/culture/upbringing/class/career/etc.
+    // 9. Import DS ancestry origin item
     // ---------------------------------------------------------
     await FTStoDSAncestry.apply(actor, FTStoDSAncestry.extract(fsData));
+
+    // ---------------------------------------------------------
+    // 10. NEW: Import FS ancestry features (Size, Choice, Bonus, etc.)
+    // ---------------------------------------------------------
+    const ancestry = FSAncestryParser.extract(fsData);
+    await FSAncestryParser.apply(actor, ancestry);
+
+    // ---------------------------------------------------------
+    // 11. Import culture, upbringing, class, career, etc.
+    // ---------------------------------------------------------
     await FTStoDSCulture.apply(actor, FTStoDSCulture.extract(fsData));
     await FTStoDSUpbringing.apply(actor, FTStoDSUpbringing.extract(fsData));
     await FTStoDSCareer.apply(actor, FTStoDSCareer.extract(fsData));

@@ -6,7 +6,6 @@ export class FTStoDSClass {
   // Extract class metadata only
   // ---------------------------------------------------------
   static extract(fsData) {
-    console.log("FTStoDSClass.extract: fsData.class =", fsData.class);
 
     return {
       classData: fsData.class ?? null
@@ -17,7 +16,6 @@ export class FTStoDSClass {
   // Apply class item + class-level updates
   // ---------------------------------------------------------
   static async apply(actor, { classData }) {
-    console.log("FTStoDSClass.apply: classData =", classData);
 
     // Remove existing class items
     const existingClassItems = actor.items.filter(i => i.type === "class");

@@ -9,12 +9,51 @@
   },
   "authors": [{ "name": "Ivan" }],
   "esmodules": [
-  "scripts/main.js",
-  "scripts/resolvers/index.js",
-  "scripts/resolvers/FSClassResolver.js",
-  "scripts/resolvers/FSSubclassResolver.js",
-  "scripts/resolvers/FSAbilityResolver.js"
-],
+    "scripts/main.js",
+
+    // Resolvers
+    "scripts/resolvers/FSAbilityResolver.js",
+    "scripts/resolvers/FSClassResolver.js",
+    "scripts/resolvers/FSSubclassResolver.js",
+    "scripts/resolvers/index.js",
+	
+    // Actor builder
+    "scripts/FTStoDSActorBuilder.js",
+	"scripts/FTStoDSAncestry.js",
+    "scripts/FTStoDSCareer.js",	
+    "scripts/FTStoDSCharacteristics.js",
+    "scripts/FTStoDSClass.js",
+	"scripts/FTStoDSCompendium.js",
+	"scripts/FTStoDSCulture.js",
+	"scripts/FTStoDSImporterApp.js",
+	"scripts/FTStoDSParser.js",
+    "scripts/FTStoDSPhysical.js",	
+    "scripts/FTStoDSProgression.js",	
+    "scripts/FTStoDSUpbringing.js",
+
+    // Importers
+    
+    "scripts/importers/FTStoDSFeatureMatcher.js",
+
+    // FS Filters
+    "scripts/fs-filters/FSItemTypeFilter.js",
+    "scripts/fs-filters/FSPerkFilter.js",
+    "scripts/fs-filters/FSSkillChoiceFilter.js",
+	
+    // NEW: Ancestry Parser Suite
+	
+    "scripts/fs-filters/ancestry/FSAncestryBonusParser.js",	
+    "scripts/fs-filters/ancestry/FSAncestryChoiceParser.js",	
+    "scripts/fs-filters/ancestry/FSAncestryCultureParser.js",	
+    "scripts/fs-filters/ancestry/FSAncestryFeatureParser.js",
+    "scripts/fs-filters/ancestry/FSAncestryLanguageChoiceParser.js",
+    "scripts/fs-filters/ancestry/FSAncestryMultiFeatureParser.js",	
+    "scripts/fs-filters/ancestry/FSAncestryParser.js",
+    "scripts/fs-filters/ancestry/FSAncestrySkillChoiceParser.js",
+
+    // Helpers
+    "scripts/helpers/matchOriginItem.js"
+  ],
   "packs": [],
   "languages": [],
   "url": "",
